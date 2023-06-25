@@ -1,0 +1,293 @@
+
+
+
+```{r}
+# read CSV file
+df <- read.csv("my_data.csv")
+```
+
+```{r}
+# lets check data
+tail(df)
+```
+
+```{r}
+# now lets check for missing values, if any
+sum(is.na(df))
+
+```
+There are no missing values
+
+```{r}
+# # chceck duolicate data
+# sum(duplicated(df))
+
+```
+
+
+```{r}
+# # unique duolicate records
+# data <- unique(data)
+
+```
+
+```{r}
+# descriptive analysis of data
+summary(df)
+
+```
+
+Now lets check the number of unique categorical values per column
+```{r}
+# Identify character columns
+char_cols <- sapply(df, is.character)
+
+# Count unique values for each character column
+unique_counts <- sapply(df[, char_cols], function(x) length(unique(x)))
+
+# Combine column names and unique counts into a table
+unique_table <- data.frame(column = names(unique_counts), unique_count = unique_counts)
+
+# Print the table
+print(unique_table)
+
+```
+
+
+since country only has one value unique value, so it can not have any affect on the target variable. 
+Drop the country column
+```{r}
+# Assuming your data frame is called "df"
+df <- subset(df, select = -c(Country))
+
+```
+
+
+```{r}
+#Now lets check for the information related to data
+str(df)
+
+```
+
+
+now lets explore the distribution of the target vairable i.e. the 'Salary'
+
+```{r}
+library(ggplot2)
+
+
+# Create a count plot
+ggplot(df, aes(x = Salary)) +
+  geom_bar()
+
+
+```
+```{r}
+library(ggplot2)
+
+# Create a data frame with count of each salary range
+df_count <- data.frame(table(df$Salary))
+
+# Create a pie chart
+ggplot(df_count, aes(x = "", y = Freq, fill = Var1)) +
+  geom_bar(width = 1, stat = "identity") +
+  coord_polar(theta = "y") +
+  labs(fill = "Salary") +
+  theme_void()
+
+```
+
+ the data is highly biased towards people with lesser salaries
+
+
+Now lets expolore the relation of Sex with salaries
+
+
+```{r}
+library(ggplot2)
+
+# Create a bar chart with percentages
+ggplot(df, aes(x = Salary, fill = Sex)) +
+  geom_bar(position = "fill") +
+  xlab("Salary") +
+  ylab("Percentage") +
+  scale_y_continuous(labels = scales::percent)
+
+```
+
+Males have a tendency of higher salaries
+
+
+Since there are a lot of categorical variables, we will first use ordinal encoding to convert the categories to numbers
+
+```{r}
+# Identify categorical columns
+categorical_cols <- sapply(df, function(x) is.factor(x) || is.character(x))
+
+
+# Encode categorical columns using ordinal encoding
+for (col in names(df)[categorical_cols]) {
+  df[[col]] <- as.integer(factor(df[[col]], ordered = TRUE))
+}
+
+
+```
+
+
+
+```{r}
+# lets check the data again after encoding
+head(df)
+```
+
+
+```{r}
+
+library(ggplot2)
+
+# Create a correlation matrix
+correlation_matrix <- round(cor(df), 2)
+
+# Convert the correlation matrix to a data frame
+corr_df <- reshape2::melt(correlation_matrix)
+
+# Rename the columns
+names(corr_df) <- c("Variable 1", "Variable 2", "Correlation")
+
+# Create a heatmap with numbers
+ggplot(corr_df, aes(x = `Variable 1`, y = `Variable 2`, fill = `Correlation`)) +
+  geom_tile() +
+  geom_text(aes(label = round(Correlation, 2)), color = "white") +
+  scale_fill_gradient2(low = "#2E86C1", mid = "white", high = "#F1948A", midpoint = 0) +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        axis.line = element_line(colour = "black"),
+        legend.position = "none")
+
+```
+
+
+
+
+
+```{r}
+corr_df = tail(corr_df, 10)
+
+
+
+
+# select columns "a" and "c"
+df_selected <- corr_df[c("Variable 1", "Correlation")]
+
+df_selected <- df_selected[df_selected$'Variable 1' != "Salary", ]
+
+# Sort the dataframe on the basis of correlation
+df_sorted <- df_selected[order(-df_selected$Correlation),]
+df_sorted
+```
+
+
+
+```{r}
+library(ggplot2)
+
+# Example data frame
+df_bar <- data.frame(category = df_sorted$`Variable 1`,
+                 values = df_sorted$Correlation)
+
+# Sort the data frame by values in descending order
+df_bar <- df_bar[order(-df_bar$values),]
+
+# Create a bar plot
+ggplot(df_bar, aes(x = category, y = values)) +
+  geom_bar(stat = "identity") +
+  xlab("Category") +
+  ylab("Values")
+
+```
+
+
+```{r}
+# Sort the dataframe on the basis of the absolute value of correlation
+df_selected$Correlation <- abs(df_selected$Correlation)
+
+# Sort the dataframe on the basis of correlation
+df_sorted <- df_selected[order(-df_selected$Correlation),]
+df_sorted
+
+```
+
+
+
+
+```{r}
+library(ggplot2)
+
+# Example data frame
+df_bar <- data.frame(category = df_sorted$`Variable 1`,
+                 values = df_sorted$Correlation)
+
+# Sort the data frame by values in descending order
+df_bar <- df_bar[order(-df_bar$values),]
+
+# Create a bar plot
+ggplot(df_bar, aes(x = category, y = values)) +
+  geom_bar(stat = "identity") +
+  xlab("Category") +
+  ylab("Values")
+```
+
+
+
+
+
+
+
+
+Salary is 1 and 2 due to the encoding done earlier.
+However, LR requires the target to be 0 and 1 so lets map it
+```{r}
+
+
+# replace 1 with 0 and 2 with 1
+df$Salary <- ifelse(df$Salary == 1, 0, 1)
+
+
+```
+
+
+
+
+
+
+```{r}
+# Fit logistic regression model
+model <- glm(Salary ~ ., data = df, family = "binomial")
+
+# Show model summary
+summary(model)
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
